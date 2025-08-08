@@ -30,16 +30,19 @@ RUN cd /app && \
     npm install && \
     npm run build
 
-# Create data directory with proper permissions
-RUN mkdir -p /app/data && chmod 777 /app/data
-RUN mkdir -p /app/sessions && chmod 777 /app/sessions
+# Create data and sessions directories with proper permissions
+RUN mkdir -p /app/data /app/sessions && \
+    chmod 777 /app/data /app/sessions
 
-# Create a start script that uses PORT environment variable
-RUN echo '#!/bin/sh\n\
-PORT=${PORT:-8000}\n\
+# Create startup script
+RUN printf '#!/bin/sh\n\
+if [ -z "$PORT" ]; then\n\
+  echo "PORT not set, using 8080"\n\
+  PORT=8080\n\
+fi\n\
 echo "Starting PHP server on port $PORT"\n\
-exec php -S 0.0.0.0:$PORT -t public' > /app/start.sh && \
+exec php -S 0.0.0.0:$PORT -t public\n' > /app/start.sh && \
 chmod +x /app/start.sh
 
-# Railway will set the PORT environment variable
+# Use the startup script
 CMD ["/app/start.sh"]
