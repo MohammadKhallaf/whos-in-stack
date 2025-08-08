@@ -1,43 +1,45 @@
-FROM node:18-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-RUN npm run build
+FROM php:8.1-cli
 
-FROM php:8.1-apache
-WORKDIR /var/www/html
-
-# Install SQLite extension
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
-    libsqlite3-dev \
-    && docker-php-ext-install pdo_sqlite \
-    && a2enmod rewrite \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    git \
+    curl \
+    libpng-dev \
+    libonig-dev \
+    libxml2-dev \
+    zip \
+    unzip \
+    nodejs \
+    npm
 
-# Copy application
-COPY --from=builder /app .
+# Install PHP extensions
+RUN docker-php-ext-install pdo pdo_mysql
 
-# Create necessary directories with proper permissions
-RUN mkdir -p data sessions \
-    && chown -R www-data:www-data data sessions \
-    && chmod -R 777 data sessions
+# Enable SQLite
+RUN apt-get install -y libsqlite3-dev \
+    && docker-php-ext-install pdo_sqlite
 
-# Configure Apache to use Railway's PORT
-RUN echo '#!/bin/bash\n\
-if [ -z "$PORT" ]; then\n\
-  PORT=8080\n\
-fi\n\
-sed -i "s/80/$PORT/g" /etc/apache2/sites-available/000-default.conf /etc/apache2/ports.conf\n\
-echo "ServerName localhost" >> /etc/apache2/apache2.conf\n\
-apache2-foreground' > /start-apache.sh && \
-chmod +x /start-apache.sh
+# Set working directory
+WORKDIR /app
 
-# Set document root to public directory
-ENV APACHE_DOCUMENT_ROOT /var/www/html/public
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
-RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
+# Copy application files
+COPY . /app
 
-# Railway will set PORT environment variable
-CMD ["/start-apache.sh"]
+# Install Node dependencies and build React
+RUN cd /app && \
+    npm install && \
+    npm run build
+
+# Create data directory with proper permissions
+RUN mkdir -p /app/data && chmod 777 /app/data
+RUN mkdir -p /app/sessions && chmod 777 /app/sessions
+
+# Create a start script that uses PORT environment variable
+RUN echo '#!/bin/sh\n\
+PORT=${PORT:-8000}\n\
+echo "Starting PHP server on port $PORT"\n\
+exec php -S 0.0.0.0:$PORT -t public' > /app/start.sh && \
+chmod +x /app/start.sh
+
+# Railway will set the PORT environment variable
+CMD ["/app/start.sh"]
