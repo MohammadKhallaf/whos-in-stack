@@ -1,40 +1,43 @@
-FROM php:8.1-cli
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    libpng-dev \
-    libonig-dev \
-    libxml2-dev \
-    zip \
-    unzip \
-    nodejs \
-    npm
-
-# Install PHP extensions
-RUN docker-php-ext-install pdo pdo_mysql
-
-# Enable SQLite
-RUN apt-get install -y libsqlite3-dev \
-    && docker-php-ext-install pdo_sqlite
-
-# Set working directory
+FROM node:18-alpine AS builder
 WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npm run build
 
-# Copy application files
-COPY . /app
+FROM php:8.1-apache
+WORKDIR /var/www/html
 
-# Install Node dependencies and build React
-RUN cd /app && \
-    npm install && \
-    npm run build
+# Install SQLite extension
+RUN apt-get update && apt-get install -y \
+    libsqlite3-dev \
+    && docker-php-ext-install pdo_sqlite \
+    && a2enmod rewrite \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Create data directory with proper permissions
-RUN mkdir -p /app/data && chmod 777 /app/data
+# Copy application
+COPY --from=builder /app .
 
-# Expose port
-EXPOSE 8000
+# Create necessary directories with proper permissions
+RUN mkdir -p data sessions \
+    && chown -R www-data:www-data data sessions \
+    && chmod -R 777 data sessions
 
-# Start PHP server
-CMD ["php", "-S", "0.0.0.0:8000", "-t", "public"]
+# Configure Apache to use Railway's PORT
+RUN echo '#!/bin/bash\n\
+if [ -z "$PORT" ]; then\n\
+  PORT=8080\n\
+fi\n\
+sed -i "s/80/$PORT/g" /etc/apache2/sites-available/000-default.conf /etc/apache2/ports.conf\n\
+echo "ServerName localhost" >> /etc/apache2/apache2.conf\n\
+apache2-foreground' > /start-apache.sh && \
+chmod +x /start-apache.sh
+
+# Set document root to public directory
+ENV APACHE_DOCUMENT_ROOT /var/www/html/public
+RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
+RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
+
+# Railway will set PORT environment variable
+CMD ["/start-apache.sh"]
