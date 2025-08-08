@@ -316,10 +316,10 @@ if (isset($_SESSION['user_number'])) {
     </div>
     
     <script>
-        // Auto-refresh every 5 seconds
+        // Auto-refresh every minute
         setTimeout(() => {
             location.reload();
-        }, 5000);
+        }, 1*1000*60);
     </script>
 </body>
 </html>
