@@ -1,73 +1,170 @@
-<?php require_once '../config/config.php'; ?>
+<?php
+session_start();
+require_once __DIR__ . '/../src/Database.php';
+
+$db = new Database();
+
+// Handle admin actions
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['action'])) {
+        switch($_POST['action']) {
+            case 'clear_all':
+                $db->clearTodayQueue();
+                break;
+        }
+        header('Location: admin.php');
+        exit;
+    }
+}
+
+$queueList = $db->getQueueList();
+$roomStatus = $db->getRoomStatus();
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo APP_NAME; ?> - Admin</title>
+    <title>Admin Dashboard</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
+            background: #f5f5f5;
+            margin: 0;
             padding: 20px;
         }
-        .container {
-            max-width: 1400px;
+        
+        .dashboard {
+            max-width: 1200px;
             margin: 0 auto;
         }
-        .header {
+        
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
             background: white;
             padding: 20px;
-            border-radius: 12px;
-            margin-bottom: 30px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr 2fr;
-            gap: 20px;
+        
+        .stat-value {
+            font-size: 36px;
+            font-weight: bold;
+            color: #667eea;
         }
-        @media (max-width: 768px) {
-            .grid { grid-template-columns: 1fr; }
+        
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        table {
+            width: 100%;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        th {
+            background: #667eea;
+            color: white;
+            padding: 15px;
+            text-align: left;
+        }
+        
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .status-waiting { background: #fef5e7; color: #f39c12; }
+        .status-occupied { background: #e8f8f5; color: #27ae60; }
+        .status-completed { background: #ebf5fb; color: #3498db; }
+        .status-cancelled { background: #fdedec; color: #e74c3c; }
+        
+        .btn-clear {
+            background: #e74c3c;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <div>
-                <h1 style="color: #1f2937; margin-bottom: 8px;">🎛️ Admin Dashboard</h1>
-                <p style="color: #6b7280;">Manage the queue system</p>
+    <div class="dashboard">
+        <h1>🎛️ Admin Dashboard</h1>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value"><?php echo $roomStatus['occupied'] ? '🔴' : '🟢'; ?></div>
+                <div class="stat-label">Room <?php echo $roomStatus['occupied'] ? 'Occupied' : 'Available'; ?></div>
             </div>
-            <a href="/" style="
-                padding: 10px 20px;
-                background: #3b82f6;
-                color: white;
-                text-decoration: none;
-                border-radius: 6px;
-            ">Customer View</a>
+            <div class="stat-card">
+                <div class="stat-value"><?php echo $roomStatus['waiting_count']; ?></div>
+                <div class="stat-label">People Waiting</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value"><?php echo count($queueList); ?></div>
+                <div class="stat-label">Total Today</div>
+            </div>
         </div>
         
-        <div style="margin-bottom: 20px;">
-            <?php echo renderReactComponent('AdminPanel'); ?>
-        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Queue #</th>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>Join Time</th>
+                    <th>Enter Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($queueList as $item): ?>
+                <tr>
+                    <td><?php echo $item['number']; ?></td>
+                    <td><?php echo htmlspecialchars($item['name']); ?></td>
+                    <td>
+                        <span class="status-badge status-<?php echo $item['status']; ?>">
+                            <?php echo ucfirst($item['status']); ?>
+                        </span>
+                    </td>
+                    <td><?php echo date('H:i', strtotime($item['created_at'])); ?></td>
+                    <td><?php echo $item['called_at'] ? date('H:i', strtotime($item['called_at'])) : '-'; ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
         
-        <div class="grid">
-            <div>
-                <?php echo renderReactComponent('RoomStatus'); ?>
-            </div>
-            
-            <div>
-                <?php echo renderReactComponent('QueueDisplay'); ?>
-            </div>
-        </div>
+        <form method="POST" onsubmit="return confirm('Clear all queue data for today?')">
+            <button type="submit" name="action" value="clear_all" class="btn-clear">
+                Clear Today's Queue
+            </button>
+        </form>
     </div>
-    
-    <script src="/js/bundle.js"></script>
 </body>
 </html>
