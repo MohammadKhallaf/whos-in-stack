@@ -1,0 +1,24 @@
+{
+  "name": "whos-in-stack-queue",
+  "version": "1.0.0",
+  "description": "Queue Management System with PHP + React",
+  "scripts": {
+    "dev": "webpack --mode development --watch",
+    "build": "webpack --mode production",
+    "serve": "php -S localhost:8000 -t public",
+    "start": "concurrently \"npm run dev\" \"npm run serve\""
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.23.0",
+    "@babel/preset-env": "^7.23.0",
+    "@babel/preset-react": "^7.22.0",
+    "babel-loader": "^9.1.0",
+    "webpack": "^5.88.0",
+    "webpack-cli": "^5.1.0",
+    "concurrently": "^8.2.0"
+  }
+}
